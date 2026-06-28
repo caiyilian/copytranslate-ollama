@@ -33,6 +33,7 @@ from ui_qt.clipboard_worker import ClipboardWatchWorker
 from ui_qt.tray import SystemTray
 from ui_qt.focus_window import FocusWindow
 from ui_qt.settings_dialog import SettingsDialog
+from ui_qt.snapshot_dialog import SnapshotDialog
 
 
 # 语言代码 -> 中文显示名
@@ -168,11 +169,27 @@ class MainWindow(QMainWindow):
         # 翻译按钮
         self._translate_btn = QPushButton("翻译")
         self._translate_btn.setShortcut("Ctrl+Return")
+        self._translate_btn.clicked.connect(self._do_translate)
         toolbar.addWidget(self._translate_btn)
 
         # 清空按钮
         self._clear_btn = QPushButton("清空")
+        self._clear_btn.clicked.connect(self._do_clear)
         toolbar.addWidget(self._clear_btn)
+
+        toolbar.addSeparator()
+
+        # 快照选择
+        toolbar.addWidget(QLabel("快照:"))
+        self._snap_combo = QComboBox()
+        self._snap_combo.addItems(self._snap_manager.snapshot_names())
+        self._snap_combo.setMinimumWidth(120)
+        self._snap_combo.currentIndexChanged.connect(self._on_snapshot_selected)
+        toolbar.addWidget(self._snap_combo)
+
+        manage_btn = QPushButton("管理")
+        manage_btn.clicked.connect(self._open_snapshots)
+        toolbar.addWidget(manage_btn)
 
     def _build_splitter(self, parent_layout: QVBoxLayout) -> None:
         """构建左右分栏。"""
@@ -487,6 +504,61 @@ class MainWindow(QMainWindow):
             self._target_combo.setCurrentText(
                 _LANG_DISPLAY.get(self._config.translation.target_lang, self._config.translation.target_lang)
             )
+
+    def _open_snapshots(self) -> None:
+        """打开快照管理对话框。"""
+        def on_select(name: str) -> None:
+            self._config.save()
+            self._model_combo.setCurrentText(self._config.translation.active_model)
+            self._source_combo.setCurrentText(
+                _LANG_DISPLAY.get(self._config.translation.source_lang, self._config.translation.source_lang)
+            )
+            self._target_combo.setCurrentText(
+                _LANG_DISPLAY.get(self._config.translation.target_lang, self._config.translation.target_lang)
+            )
+            self._refresh_snap_combo()
+            self._status_label.setText(f"已加载快照: {name}")
+            text = self._src_text.toPlainText().strip()
+            if text:
+                self._do_translate()
+
+        dialog = SnapshotDialog(
+            parent=self,
+            config=self._config,
+            on_select=on_select,
+        )
+        dialog.exec()
+        self._refresh_snap_combo()
+
+    def _on_snapshot_selected(self) -> None:
+        """快照下拉框选择。"""
+        name = self._snap_combo.currentText()
+        if not name:
+            return
+        success = self._snap_manager.apply_snapshot(name, self._config)
+        if success:
+            self._config.save()
+            self._model_combo.setCurrentText(self._config.translation.active_model)
+            self._source_combo.setCurrentText(
+                _LANG_DISPLAY.get(self._config.translation.source_lang, self._config.translation.source_lang)
+            )
+            self._target_combo.setCurrentText(
+                _LANG_DISPLAY.get(self._config.translation.target_lang, self._config.translation.target_lang)
+            )
+            self._status_label.setText(f"已加载快照: {name}")
+            text = self._src_text.toPlainText().strip()
+            if text:
+                self._do_translate()
+
+    def _refresh_snap_combo(self) -> None:
+        """刷新快照下拉列表。"""
+        current = self._snap_combo.currentText()
+        self._snap_combo.blockSignals(True)
+        self._snap_combo.clear()
+        self._snap_combo.addItems(self._snap_manager.snapshot_names())
+        if current in self._snap_manager.snapshot_names():
+            self._snap_combo.setCurrentText(current)
+        self._snap_combo.blockSignals(False)
 
     # ------------------------------------------------------------------
     # 生命周期
