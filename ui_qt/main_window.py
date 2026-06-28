@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThread
+from PyQt6.QtCore import QSettings, Qt, QThread
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
         self._connect_signals()
         self._start_clipboard_watch()
         self._build_tray()
+        self._restore_layout()
 
     # ------------------------------------------------------------------
     # 菜单栏
@@ -592,6 +593,26 @@ class MainWindow(QMainWindow):
         if current in self._snap_manager.snapshot_names():
             self._snap_combo.setCurrentText(current)
         self._snap_combo.blockSignals(False)
+
+    # ------------------------------------------------------------------
+    # 布局持久化
+    # ------------------------------------------------------------------
+
+    def _save_layout(self) -> None:
+        """保存窗口布局到 QSettings。"""
+        s = QSettings("caiyilian", "CopyTranslator-Ollama")
+        s.setValue("geometry", self.saveGeometry())
+        s.setValue("splitter_sizes", self._splitter.saveState())
+
+    def _restore_layout(self) -> None:
+        """从 QSettings 恢复窗口布局。"""
+        s = QSettings("caiyilian", "CopyTranslator-Ollama")
+        geo = s.value("geometry")
+        if geo:
+            self.restoreGeometry(geo)
+        split = s.value("splitter_sizes")
+        if split:
+            self._splitter.restoreState(split)
 
     # ------------------------------------------------------------------
     # 生命周期
