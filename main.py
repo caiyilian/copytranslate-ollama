@@ -40,10 +40,17 @@ def cmd_listen(args: argparse.Namespace) -> None:
 
 def cmd_gui(args: argparse.Namespace) -> None:
     """启动 GUI 模式。"""
-    from ui.main_window import MainWindow
+    mode = args.mode or "contrast"
+    if mode == "focus":
+        from ui.focus_window import FocusWindow
 
-    window = MainWindow(mode=args.mode or "contrast")
-    window.run()
+        window = FocusWindow()
+        window.run()
+    else:
+        from ui.main_window import MainWindow
+
+        window = MainWindow(mode=mode)
+        window.run()
 
 
 def build_parser() -> argparse.ArgumentParser:
