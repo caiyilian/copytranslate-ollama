@@ -277,6 +277,14 @@ class MainWindow:
         )
         self._export_btn.pack(side=tk.LEFT, padx=5)
 
+        # 关于按钮
+        self._about_btn = ttk.Button(
+            bottom_frame,
+            text="关于",
+            command=self._open_about,
+        )
+        self._about_btn.pack(side=tk.LEFT, padx=5)
+
         # 设置按钮
         self._settings_btn = ttk.Button(
             bottom_frame,
@@ -598,6 +606,17 @@ class MainWindow:
         from ui.export_dialog import ExportDialog
 
         dialog = ExportDialog(parent=self._root)
+        dialog.wait()
+
+    # ------------------------------------------------------------------
+    # 关于
+    # ------------------------------------------------------------------
+
+    def _open_about(self) -> None:
+        """打开关于对话框。"""
+        from ui.about_dialog import AboutDialog
+
+        dialog = AboutDialog(parent=self._root)
         dialog.wait()
 
     # ------------------------------------------------------------------
