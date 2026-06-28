@@ -1,0 +1,156 @@
+"""翻译流水线。
+
+集成剪贴板监听 → 文本净化 → 翻译调度 → 输出译文的完整流程。
+"""
+
+from __future__ import annotations
+
+import signal
+import sys
+from typing import Optional
+
+from core.cleaner import TextCleaner
+from core.clipboard import ClipboardWatcher
+from core.config import AppConfig
+from core.translator import Translator
+
+
+class Pipeline:
+    """翻译流水线。
+
+    管理剪贴板监听、文本净化、翻译调度、输出展示的完整流程。
+
+    用法:
+        pipeline = Pipeline()
+        pipeline.run_listen(model="translategemma:4b")
+    """
+
+    def __init__(
+        self,
+        config: Optional[AppConfig] = None,
+    ) -> None:
+        self._config = config or AppConfig.load()
+        self._cleaner = TextCleaner(
+            fix_hyphenation=self._config.cleaner.fix_hyphenation,
+            merge_paragraph_lines=self._config.cleaner.merge_paragraph_lines,
+        )
+        self._translator = Translator()
+        self._watcher: Optional[ClipboardWatcher] = None
+
+    def translate_once(
+        self,
+        text: str,
+        source: str = "en",
+        target: str = "zh",
+        model: str = "translategemma:4b",
+        temperature: float = 0.0,
+        max_length: int = 2048,
+    ) -> str:
+        """单次翻译：净化 → 翻译。
+
+        Returns:
+            译文文本。
+        """
+        cleaned = self._cleaner.clean(text)
+        return self._translator.translate(
+            text=cleaned,
+            source=source,
+            target=target,
+            model=model,
+            temperature=temperature,
+            max_length=max_length,
+        )
+
+    def run_listen(
+        self,
+        model: Optional[str] = None,
+        source: str = "auto",
+        target: str = "zh",
+    ) -> None:
+        """启动剪贴板监听翻译模式。
+
+        Args:
+            model: 模型名称，默认从配置读取。
+            source: 源语言。
+            target: 目标语言。
+        """
+        cfg = self._config
+        model_name = model or cfg.translation.active_model
+        source_lang = source if source != "auto" else cfg.translation.source_lang
+        target_lang = target or cfg.translation.target_lang
+        temperature = cfg.translation.temperature
+        max_length = cfg.translation.max_length
+
+        print(
+            f"CopyTranslator-Ollama 翻译监听已启动\n"
+            f"  模型: {model_name}\n"
+            f"  方向: {source_lang} -> {target_lang}\n"
+            f"  净化: {'开' if cfg.clipboard.enable_cleaner else '关'}\n"
+            f"  状态: 等待剪贴板内容...\n"
+            f"  提示: 复制任意文本开始翻译，按 Ctrl+C 退出\n"
+            f"{'─' * 50}"
+        )
+
+        def on_clipboard_change(raw_text: str) -> None:
+            """剪贴板变化回调。"""
+            nonlocal source_lang
+
+            try:
+                # 文本净化
+                text = raw_text
+                if cfg.clipboard.enable_cleaner:
+                    text = self._cleaner.clean(raw_text)
+
+                # 翻译
+                result = self._translator.translate(
+                    text=text,
+                    source=source_lang,
+                    target=target_lang,
+                    model=model_name,
+                    temperature=temperature,
+                    max_length=max_length,
+                )
+
+                # 输出
+                print(f"\n[原文]    {text[:200]}")
+                if len(text) > 200:
+                    print(f"          ... (共 {len(text)} 字符)")
+                print(f"[译文]    {result[:200]}")
+                if len(result) > 200:
+                    print(f"          ... (共 {len(result)} 字符)")
+                print(f"{'─' * 50}")
+
+            except Exception as e:
+                print(f"\n[错误] 翻译失败: {e}")
+                print(f"{'─' * 50}")
+
+        self._watcher = ClipboardWatcher(
+            callback=on_clipboard_change,
+            config=cfg.clipboard,
+        )
+
+        def handle_signal(signum: int, frame: object) -> None:
+            """信号处理，优雅退出。"""
+            print("\n正在退出...")
+            if self._watcher:
+                self._watcher.stop()
+            self._translator.close()
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, handle_signal)
+        signal.signal(signal.SIGTERM, handle_signal)
+
+        try:
+            self._watcher.start()
+        except KeyboardInterrupt:
+            print("\n正在退出...")
+        finally:
+            if self._watcher:
+                self._watcher.stop()
+            self._translator.close()
+
+    def close(self) -> None:
+        """释放资源。"""
+        if self._watcher:
+            self._watcher.stop()
+        self._translator.close()
