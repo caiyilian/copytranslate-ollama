@@ -63,6 +63,14 @@ class MainWindow:
         # 当前翻译中的标记
         self._translating = False
 
+        # 语言代码 → 名称映射（用于自动检测结果显示）
+        self._lang_names = {
+            "en": "English", "zh": "中文", "ja": "日本語",
+            "ko": "한국어", "fr": "Français", "de": "Deutsch",
+            "es": "Español", "ru": "Русский", "ar": "العربية",
+            "pt": "Português", "th": "ไทย",
+        }
+
         # 剪贴板监听
         self._clip_watcher = ClipboardWatcher(
             callback=self._on_clipboard_change,
@@ -289,16 +297,16 @@ class MainWindow:
         self._root.update()
 
         try:
-            result = self._pipeline.translate_once(
+            result, detected = self._pipeline.translate_once(
                 text=text,
                 source=self._source_var.get(),
                 target=self._target_var.get(),
                 model=self._model_var.get(),
             )
             self._set_tgt_text(result)
-            char_count = len(result)
+            lang_label = self._lang_names.get(detected, detected)
             self._status_label.configure(
-                text=f"完成 ({char_count} 字符)"
+                text=f"完成 ({len(result)} 字符)  [{lang_label}]"
             )
         except Exception as e:
             self._set_tgt_text(f"[翻译失败] {e}")

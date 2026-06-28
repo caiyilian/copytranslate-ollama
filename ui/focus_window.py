@@ -300,13 +300,19 @@ class FocusWindow:
         self._root.update()
 
         try:
-            result = self._pipeline.translate_once(
+            result, detected = self._pipeline.translate_once(
                 text=text,
                 source=self._config.translation.source_lang,
                 target=self._config.translation.target_lang,
                 model=self._config.translation.active_model,
             )
-            self._trans_label.configure(text=result)
+            label = result
+            # 如果启用了自动检测，显示检测到的语言
+            if self._config.translation.source_lang == "auto":
+                from core.translator import LANG_NAMES
+                lang_name = LANG_NAMES.get(detected, detected)
+                label = f"[{lang_name}] {result}"
+            self._trans_label.configure(text=label)
         except Exception as e:
             self._trans_label.configure(text=f"[错误] {e}")
 
