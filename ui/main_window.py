@@ -253,6 +253,14 @@ class MainWindow:
         )
         self._history_btn.pack(side=tk.LEFT, padx=5)
 
+        # 统计按钮
+        self._stats_btn = ttk.Button(
+            bottom_frame,
+            text="统计",
+            command=self._open_stats,
+        )
+        self._stats_btn.pack(side=tk.LEFT, padx=5)
+
         # 设置按钮
         self._settings_btn = ttk.Button(
             bottom_frame,
@@ -532,6 +540,17 @@ class MainWindow:
         from ui.history_dialog import HistoryDialog
 
         dialog = HistoryDialog(parent=self._root)
+        dialog.wait()
+
+    # ------------------------------------------------------------------
+    # 统计
+    # ------------------------------------------------------------------
+
+    def _open_stats(self) -> None:
+        """打开翻译统计面板。"""
+        from ui.stats_dialog import StatsDialog
+
+        dialog = StatsDialog(parent=self._root)
         dialog.wait()
 
     # ------------------------------------------------------------------
