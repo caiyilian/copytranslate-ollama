@@ -204,6 +204,14 @@ class MainWindow:
         )
         self._clear_btn.pack(side=tk.LEFT, padx=5)
 
+        # 模式切换按钮
+        self._mode_btn = ttk.Button(
+            bottom_frame,
+            text="专注模式 >>",
+            command=self._switch_to_focus,
+        )
+        self._mode_btn.pack(side=tk.RIGHT, padx=5)
+
     def _bind_events(self) -> None:
         """绑定事件。"""
         # 原文变化 -> 自动翻译
@@ -318,11 +326,23 @@ class MainWindow:
 
     def _open_focus_mode(self) -> None:
         """从托盘打开专注模式窗口。"""
+        self._switch_to_focus()
+
+    def _switch_to_focus(self) -> None:
+        """切换到专注模式。"""
         from ui.focus_window import FocusWindow
 
+        # 隐藏对照窗口
+        self._root.withdraw()
+        self._tray.set_status(
+            paused=self._clip_paused, visible=False
+        )
+
+        # 打开专注窗口（共享 pipeline）
         fw = FocusWindow(
             pipeline=self._pipeline,
             config=self._config,
+            main_window=self,
         )
         fw.run()
 
