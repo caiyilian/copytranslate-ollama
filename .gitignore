@@ -27,3 +27,7 @@ data/
 
 # Ollama models not stored here, but just in case
 models/
+
+# OpenCode / internal state
+.omo/
+.codegraph/
