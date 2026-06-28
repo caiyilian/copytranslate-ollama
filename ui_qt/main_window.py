@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 from core.config import AppConfig
 from core.pipeline import Pipeline
 from core.snapshot_manager import SnapshotManager
+from ui_qt.translate_worker import TranslateWorker
 
 
 # 语言代码 -> 中文显示名
@@ -73,6 +74,7 @@ class MainWindow(QMainWindow):
         self._build_menus()
         self._build_central()
         self._build_status_bar()
+        self._connect_signals()
 
     # ------------------------------------------------------------------
     # 菜单栏
@@ -247,6 +249,108 @@ class MainWindow(QMainWindow):
         # 状态标签
         self._status_label = QLabel("就绪")
         status_bar.addPermanentWidget(self._status_label)
+
+    # ------------------------------------------------------------------
+    # 信号连接
+    # ------------------------------------------------------------------
+
+    def _connect_signals(self) -> None:
+        """连接信号槽。"""
+        self._translate_btn.clicked.connect(self._do_translate)
+        self._clear_btn.clicked.connect(self._do_clear)
+
+    # ------------------------------------------------------------------
+    # 翻译操作
+    # ------------------------------------------------------------------
+
+    def _do_translate(self) -> None:
+        """执行翻译（启动工作线程）。"""
+        text = self._src_text.toPlainText().strip()
+        if not text:
+            self._status_label.setText("请输入原文")
+            return
+
+        if self._translating:
+            return
+
+        self._translating = True
+        self._translate_btn.setEnabled(False)
+        self._status_label.setText("翻译中...")
+        self._progress.setVisible(True)
+        self._progress.setValue(0)
+
+        source_display = self._source_combo.currentText()
+        target_display = self._target_combo.currentText()
+        source_code = _LANG_CODE.get(source_display, source_display)
+        target_code = _LANG_CODE.get(target_display, target_display)
+
+        # 创建工作线程
+        self._thread = QThread()
+        self._worker = TranslateWorker(self._pipeline)
+        self._worker.moveToThread(self._thread)
+
+        # 连接信号
+        self._worker.progress.connect(self._on_progress)
+        self._worker.finished.connect(self._on_translation_done)
+        self._worker.error_occurred.connect(self._on_translation_error)
+        self._thread.started.connect(
+            lambda: self._worker.run(
+                text=text,
+                source=source_code,
+                target=target_code,
+                model=self._model_combo.currentText(),
+            )
+        )
+        self._worker.finished.connect(self._thread.quit)
+        self._worker.error_occurred.connect(self._thread.quit)
+        self._thread.finished.connect(self._cleanup_thread)
+
+        self._thread.start()
+
+    def _on_progress(self, current: int, total: int) -> None:
+        """进度更新（主线程）。"""
+        pct = int(current / total * 100)
+        self._progress.setValue(pct)
+        self._progress.setFormat(f"{current}/{total}")
+        self._status_label.setText(f"翻译中: {current}/{total} 段")
+
+    def _on_translation_done(self, result: str, detected: str) -> None:
+        """翻译完成（主线程）。"""
+        self._tgt_text.setText(result)
+        self._progress.setValue(100)
+        self._progress.setFormat("完成")
+        lang_label = _LANG_DISPLAY.get(detected, detected) if detected else ""
+        suffix = f"  [{lang_label}]" if lang_label else ""
+        self._status_label.setText(
+            f"完成 ({len(result)} 字符){suffix}"
+        )
+
+    def _on_translation_error(self, message: str) -> None:
+        """翻译失败（主线程）。"""
+        self._tgt_text.setText(f"[翻译失败] {message}")
+        self._status_label.setText("错误")
+        self._progress.setVisible(False)
+
+    def _cleanup_thread(self) -> None:
+        """清理工作线程。"""
+        self._translating = False
+        self._translate_btn.setEnabled(True)
+        if hasattr(self, "_thread"):
+            self._thread.deleteLater()
+            del self._thread
+        if hasattr(self, "_worker"):
+            self._worker.deleteLater()
+            del self._worker
+
+    def _do_clear(self) -> None:
+        """清空原文和译文。"""
+        self._src_text.clear()
+        self._tgt_text.clear()
+        self._status_label.setText("已清空")
+        self._progress.setVisible(False)
+        self._progress.setValue(0)
+        self._translating = False
+        self._translate_btn.setEnabled(True)
 
     # ------------------------------------------------------------------
     # 进度更新
