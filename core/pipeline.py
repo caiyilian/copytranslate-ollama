@@ -12,6 +12,7 @@ from typing import Optional, Tuple
 from core.cleaner import TextCleaner
 from core.clipboard import ClipboardWatcher
 from core.config import AppConfig
+from core.logger import HistoryEntry, HistoryManager, log_translation
 from core.translator import Translator, _resolve_lang_name
 
 
@@ -35,6 +36,7 @@ class Pipeline:
             merge_paragraph_lines=self._config.cleaner.merge_paragraph_lines,
         )
         self._translator = Translator()
+        self._history = HistoryManager()
         self._watcher: Optional[ClipboardWatcher] = None
 
     def translate_once(
@@ -46,12 +48,15 @@ class Pipeline:
         temperature: float = 0.0,
         max_length: int = 2048,
     ) -> Tuple[str, str]:
-        """单次翻译：净化 → 翻译。
+        """单次翻译：净化 → 翻译 → 记录历史。
 
         Returns:
             Tuple[str, str]: (译文文本, 检测到的源语言代码)。
         """
+        import time
+
         cleaned = self._cleaner.clean(text)
+        start = time.time()
         result, detected = self._translator.translate(
             text=cleaned,
             source=source,
@@ -60,6 +65,29 @@ class Pipeline:
             temperature=temperature,
             max_length=max_length,
         )
+        duration_ms = (time.time() - start) * 1000
+
+        # 记录日志和历史
+        log_translation(
+            source_text=cleaned,
+            target_text=result,
+            source_lang=source,
+            target_lang=target,
+            model=model,
+            duration_ms=duration_ms,
+        )
+        self._history.add_entry(
+            HistoryEntry(
+                source_text=cleaned,
+                target_text=result,
+                source_lang=source,
+                target_lang=target,
+                model=model,
+                detected_lang=detected if source == "auto" else "",
+                duration_ms=duration_ms,
+            )
+        )
+
         return result, detected
 
     def run_listen(
