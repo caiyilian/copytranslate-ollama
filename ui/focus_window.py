@@ -8,7 +8,7 @@ from __future__ import annotations
 import threading
 import tkinter as tk
 from tkinter import ttk
-from typing import Optional
+from typing import Any, Optional
 
 from core.clipboard import ClipboardWatcher
 from core.pipeline import Pipeline
@@ -33,9 +33,11 @@ class FocusWindow:
         self,
         pipeline: Optional[Pipeline] = None,
         config: Optional[AppConfig] = None,
+        main_window: Optional[Any] = None,
     ) -> None:
         self._pipeline = pipeline or Pipeline()
         self._config = config or AppConfig.load()
+        self._main_window = main_window
 
         self._root = tk.Tk()
         self._root.title("CopyTranslator-Ollama — 专注模式")
@@ -98,6 +100,18 @@ class FocusWindow:
         self._drag_label.pack(side=tk.LEFT, padx=8)
 
         # 控制按钮
+        self._switch_btn = tk.Button(
+            self._title_bar,
+            text="◫",
+            bg="#3c3c3c",
+            fg="#aaaaaa",
+            relief=tk.FLAT,
+            font=("Segoe UI", 10),
+            cursor="hand2",
+            command=self._switch_to_contrast,
+        )
+        self._switch_btn.pack(side=tk.RIGHT, padx=(0, 2))
+
         self._pause_btn = tk.Button(
             self._title_bar,
             text="⏸",
@@ -348,9 +362,20 @@ class FocusWindow:
         self._clip_running = False
 
     def _on_close(self) -> None:
-        """关闭窗口。"""
+        """关闭浮窗，回到对照模式或退出。"""
         self._stop_clipboard_watch()
-        self._pipeline.close()
+        if self._main_window:
+            self._main_window._show_window()
+            self._root.destroy()
+        else:
+            self._pipeline.close()
+            self._root.destroy()
+
+    def _switch_to_contrast(self) -> None:
+        """切换到对照模式。"""
+        self._stop_clipboard_watch()
+        if self._main_window:
+            self._main_window._show_window()
         self._root.destroy()
 
     def run(self) -> None:
