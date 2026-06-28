@@ -14,6 +14,7 @@ from typing import Optional
 from core.clipboard import ClipboardWatcher
 from core.pipeline import Pipeline
 from core.config import AppConfig
+from core.snapshot_manager import SnapshotManager
 from ui.tray import SystemTray
 
 
@@ -70,6 +71,9 @@ class MainWindow:
             "es": "Español", "ru": "Русский", "ar": "العربية",
             "pt": "Português", "th": "ไทย",
         }
+
+        # 快照管理器
+        self._snap_manager = SnapshotManager(self._config)
 
         # 剪贴板监听
         self._clip_watcher = ClipboardWatcher(
@@ -154,6 +158,23 @@ class MainWindow:
             width=10,
         )
         self._clip_btn.pack(side=tk.LEFT, padx=(5, 0))
+
+        # 快照选择
+        ttk.Label(top_frame, text="快照:").pack(side=tk.LEFT, padx=(10, 2))
+        self._snap_var = tk.StringVar()
+        self._snap_combo = ttk.Combobox(
+            top_frame,
+            textvariable=self._snap_var,
+            values=self._snap_manager.snapshot_names(),
+            width=14,
+            state="readonly",
+        )
+        self._snap_combo.pack(side=tk.LEFT, padx=(0, 2))
+        self._snap_combo.bind("<<ComboboxSelected>>", self._on_snapshot_selected)
+
+        ttk.Button(
+            top_frame, text="管理", width=5, command=self._open_snapshots
+        ).pack(side=tk.LEFT, padx=(0, 5))
 
         # 状态栏（右侧）
         self._status_label = ttk.Label(top_frame, text="就绪")
@@ -385,6 +406,55 @@ class MainWindow:
         text = self._src_text.get("1.0", tk.END).strip()
         if text:
             self._schedule_translate()
+
+    def _on_snapshot_selected(self, event: object = None) -> None:
+        """快照下拉框选择后的回调。"""
+        name = self._snap_var.get()
+        if not name:
+            return
+        success = self._snap_manager.apply_snapshot(name, self._config)
+        if success:
+            self._config.save()
+            # 更新 UI 控件状态
+            self._model_var.set(self._config.translation.active_model)
+            self._source_var.set(self._config.translation.source_lang)
+            self._target_var.set(self._config.translation.target_lang)
+            self._status_label.configure(text=f"已加载快照: {name}")
+            # 如果有原文，重新翻译
+            text = self._src_text.get("1.0", tk.END).strip()
+            if text:
+                self._schedule_translate()
+
+    def _open_snapshots(self) -> None:
+        """打开快照管理对话框。"""
+        from ui.snapshot_dialog import SnapshotDialog
+
+        def on_select(name: str) -> None:
+            """快照加载后的回调。"""
+            self._config.save()
+            self._model_var.set(self._config.translation.active_model)
+            self._source_var.set(self._config.translation.source_lang)
+            self._target_var.set(self._config.translation.target_lang)
+            # 刷新快照列表
+            self._snap_combo.configure(
+                values=self._snap_manager.snapshot_names()
+            )
+            self._snap_var.set(name)
+            self._status_label.configure(text=f"已加载快照: {name}")
+            text = self._src_text.get("1.0", tk.END).strip()
+            if text:
+                self._schedule_translate()
+
+        dialog = SnapshotDialog(
+            parent=self._root,
+            config=self._config,
+            on_select=on_select,
+        )
+        dialog.wait()
+        # 对话框关闭后刷新列表
+        self._snap_combo.configure(
+            values=self._snap_manager.snapshot_names()
+        )
 
     def _cycle_model(self) -> None:
         """切换下一个可用模型。"""
