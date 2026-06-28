@@ -24,15 +24,18 @@ def cmd_version() -> None:
 
 
 def cmd_listen(args: argparse.Namespace) -> None:
-    """启动剪贴板监听模式（占位）。"""
-    from core.config import AppConfig
+    """启动剪贴板监听模式。"""
+    from core.pipeline import Pipeline
 
-    cfg = AppConfig.load()
-    print(
-        f"[{PROJECT}] 剪贴板监听模式（待实现）\n"
-        f"  模型: {cfg.translation.active_model}\n"
-        f"  方向: {cfg.translation.source_lang} -> {cfg.translation.target_lang}"
-    )
+    pipeline = Pipeline()
+    try:
+        pipeline.run_listen(
+            model=args.model,
+            source=args.source or "auto",
+            target=args.target or "zh",
+        )
+    finally:
+        pipeline.close()
 
 
 def cmd_gui(args: argparse.Namespace) -> None:
@@ -72,6 +75,18 @@ def build_parser() -> argparse.ArgumentParser:
         "-m",
         default=None,
         help="指定翻译模型（覆盖配置文件中的设置）",
+    )
+    listen_parser.add_argument(
+        "--source",
+        "-s",
+        default=None,
+        help="源语言代码（如 en, auto）",
+    )
+    listen_parser.add_argument(
+        "--target",
+        "-t",
+        default=None,
+        help="目标语言代码（如 zh）",
     )
 
     gui_parser = sub.add_parser(
