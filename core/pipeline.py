@@ -38,6 +38,7 @@ class Pipeline:
         self._translator = Translator()
         self._history = HistoryManager()
         self._watcher: Optional[ClipboardWatcher] = None
+        self._current_model: Optional[str] = None
 
     def translate_once(
         self,
@@ -65,6 +66,7 @@ class Pipeline:
             temperature=temperature,
             max_length=max_length,
         )
+        self._current_model = model
         duration_ms = (time.time() - start) * 1000
 
         # 记录日志和历史
@@ -89,6 +91,14 @@ class Pipeline:
         )
 
         return result, detected
+
+    def stop_current_model(self) -> None:
+        """卸载当前已加载的模型（切换模型前调用）。"""
+        if self._current_model:
+            try:
+                self._translator._client.stop_model(self._current_model)
+            except Exception:
+                pass  # 卸载失败不影响后续操作
 
     def run_listen(
         self,
