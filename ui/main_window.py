@@ -1,27 +1,32 @@
 """对照模式主窗口。
 
 左右分栏布局，原文（左）+ 译文（右），支持自动翻译和模型热切换。
+集成后台剪贴板监听，复制文本自动填充原文并翻译。
 """
 
 from __future__ import annotations
 
+import threading
 import tkinter as tk
 from tkinter import ttk
 from typing import Optional
 
+from core.clipboard import ClipboardWatcher
 from core.pipeline import Pipeline
 from core.config import AppConfig
 
 
 # 自动翻译延迟（毫秒）：用户停止输入后再触发翻译
 _AUTO_TRANSLATE_DELAY_MS = 600
+# 剪贴板轮询间隔（毫秒）
+_CLIPBOARD_POLL_MS = 500
 
 
 class MainWindow:
     """对照模式主窗口。
 
     左右 PanedWindow 分栏，左侧可编辑原文，右侧只读译文。
-    支持自动翻译（输入延迟后触发）和模型/语言热切换。
+    支持自动翻译（输入延迟后触发）、模型/语言热切换和后台剪贴板监听。
     """
 
     def __init__(
@@ -56,6 +61,16 @@ class MainWindow:
 
         # 当前翻译中的标记
         self._translating = False
+
+        # 剪贴板监听
+        self._clip_watcher = ClipboardWatcher(
+            callback=self._on_clipboard_change,
+            config=self._config.clipboard,
+        )
+        self._clip_running = False
+        self._clip_paused = False
+        self._clip_thread: Optional[threading.Thread] = None
+        self._last_clip_hash: Optional[str] = None
 
         self._build_ui()
         self._bind_events()
@@ -111,6 +126,15 @@ class MainWindow:
             variable=self._auto_translate_var,
         )
         self._auto_cb.pack(side=tk.LEFT, padx=(10, 0))
+
+        # 剪贴板监听按钮
+        self._clip_btn = ttk.Button(
+            top_frame,
+            text="📋 监听中",
+            command=self._toggle_clipboard,
+            width=10,
+        )
+        self._clip_btn.pack(side=tk.LEFT, padx=(5, 0))
 
         # 状态栏（右侧）
         self._status_label = ttk.Label(top_frame, text="就绪")
@@ -268,9 +292,80 @@ class MainWindow:
         """窗口关闭时释放资源。"""
         if self._auto_translate_after_id:
             self._root.after_cancel(self._auto_translate_after_id)
+        self._stop_clipboard_watch()
         self._pipeline.close()
         self._root.destroy()
 
+    # ------------------------------------------------------------------
+    # 剪贴板监听
+    # ------------------------------------------------------------------
+
+    def _on_clipboard_change(self, text: str) -> None:
+        """剪贴板变化回调（在监听线程中调用）。"""
+        if self._clip_paused:
+            return
+
+        # 通过 after() 在主线程更新 UI
+        self._root.after(0, self._handle_clipboard_text, text)
+
+    def _handle_clipboard_text(self, text: str) -> None:
+        """在主线程中处理剪贴板文本。"""
+        # 清空原文、填入新内容
+        self._src_text.delete("1.0", tk.END)
+        self._src_text.insert("1.0", text)
+
+        self._status_label.configure(
+            text=f"检测到剪贴板 ({len(text)} 字符)"
+        )
+
+        # 自动翻译
+        if self._auto_translate_var.get():
+            self._schedule_translate()
+
+    def _toggle_clipboard(self) -> None:
+        """切换剪贴板监听状态。"""
+        if self._clip_paused:
+            self._clip_paused = False
+            self._clip_btn.configure(text="📋 监听中")
+            self._status_label.configure(text="剪贴板监听已恢复")
+        else:
+            self._clip_paused = True
+            self._clip_btn.configure(text="📋 已暂停")
+            self._status_label.configure(text="剪贴板监听已暂停")
+
+    def _clipboard_loop(self) -> None:
+        """后台剪贴板轮询循环。"""
+        self._clip_running = True
+        while self._clip_running:
+            try:
+                text = self._clip_watcher.poll_once()
+                if text is not None:
+                    self._on_clipboard_change(text)
+            except Exception:
+                pass
+            import time
+            time.sleep(_CLIPBOARD_POLL_MS / 1000.0)
+
+    def _start_clipboard_watch(self) -> None:
+        """启动后台剪贴板监听线程。"""
+        if self._clip_thread and self._clip_thread.is_alive():
+            return
+        self._clip_paused = False
+        self._clip_thread = threading.Thread(
+            target=self._clipboard_loop,
+            daemon=True,
+            name="clipboard-watcher",
+        )
+        self._clip_thread.start()
+        self._clip_btn.configure(text="📋 监听中")
+
+    def _stop_clipboard_watch(self) -> None:
+        """停止后台剪贴板监听。"""
+        self._clip_running = False
+        self._clip_paused = True
+        self._clip_thread = None
+
     def run(self) -> None:
         """启动主循环。"""
+        self._start_clipboard_watch()
         self._root.mainloop()
