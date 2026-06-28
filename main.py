@@ -39,14 +39,11 @@ def cmd_listen(args: argparse.Namespace) -> None:
 
 
 def cmd_gui(args: argparse.Namespace) -> None:
-    """启动 GUI 模式（占位）。"""
-    from core.config import AppConfig
+    """启动 GUI 模式。"""
+    from ui.main_window import MainWindow
 
-    cfg = AppConfig.load()
-    print(
-        f"[{PROJECT}] GUI 模式（待实现）\n"
-        f"  当前配置: {cfg.get_config_path()}"
-    )
+    window = MainWindow()
+    window.run()
 
 
 def build_parser() -> argparse.ArgumentParser:
