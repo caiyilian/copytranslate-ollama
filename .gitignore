@@ -22,7 +22,7 @@ env/
 Thumbs.db
 
 # Project specific
-data/
+data/*.db
 *.db
 
 # Ollama models not stored here, but just in case
