@@ -15,6 +15,8 @@ from core.clipboard import ClipboardWatcher
 from core.pipeline import Pipeline
 from core.config import AppConfig
 from core.snapshot_manager import SnapshotManager
+from core.startup import is_enabled as is_startup_enabled
+from core.startup import toggle as toggle_startup
 from ui.tray import SystemTray
 
 
@@ -175,6 +177,16 @@ class MainWindow:
         ttk.Button(
             top_frame, text="管理", width=5, command=self._open_snapshots
         ).pack(side=tk.LEFT, padx=(0, 5))
+
+        # 开机自启开关
+        self._startup_var = tk.BooleanVar(value=is_startup_enabled())
+        self._startup_cb = ttk.Checkbutton(
+            top_frame,
+            text="自启",
+            variable=self._startup_var,
+            command=self._toggle_startup,
+        )
+        self._startup_cb.pack(side=tk.LEFT, padx=(10, 0))
 
         # 状态栏（右侧）
         self._status_label = ttk.Label(top_frame, text="就绪")
@@ -496,6 +508,20 @@ class MainWindow:
         self._pipeline.close()
         self._root.quit()
         self._root.destroy()
+
+    # ------------------------------------------------------------------
+    # 开机自启
+    # ------------------------------------------------------------------
+
+    def _toggle_startup(self) -> None:
+        """切换开机自启状态。"""
+        new_state = toggle_startup()
+        self._startup_var.set(new_state)
+        from ui.toast import Toast
+        if new_state:
+            Toast.success(self._root, "开机自启已启用")
+        else:
+            Toast.info(self._root, "开机自启已关闭")
 
     # ------------------------------------------------------------------
     # 历史记录
