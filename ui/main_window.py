@@ -14,6 +14,7 @@ from typing import Optional
 from core.clipboard import ClipboardWatcher
 from core.pipeline import Pipeline
 from core.config import AppConfig
+from ui.tray import SystemTray
 
 
 # 自动翻译延迟（毫秒）：用户停止输入后再触发翻译
@@ -71,6 +72,16 @@ class MainWindow:
         self._clip_paused = False
         self._clip_thread: Optional[threading.Thread] = None
         self._last_clip_hash: Optional[str] = None
+
+        # 系统托盘
+        self._tray = SystemTray(
+            tooltip="CopyTranslator-Ollama",
+            on_show=self._show_window,
+            on_focus=self._open_focus_mode,
+            on_toggle_pause=self._toggle_clipboard,
+            on_switch_model=self._cycle_model,
+            on_quit=self._quit_app,
+        )
 
         self._build_ui()
         self._bind_events()
@@ -289,11 +300,52 @@ class MainWindow:
         self._status_label.configure(text="已清空")
 
     def _on_close(self) -> None:
-        """窗口关闭时释放资源。"""
+        """窗口关闭时最小化到托盘。"""
+        if self._auto_translate_after_id:
+            self._root.after_cancel(self._auto_translate_after_id)
+        self._root.withdraw()
+        self._tray.set_status(
+            paused=self._clip_paused, visible=False
+        )
+
+    def _show_window(self) -> None:
+        """从托盘显示窗口。"""
+        self._root.deiconify()
+        self._root.lift()
+        self._tray.set_status(
+            paused=self._clip_paused, visible=True
+        )
+
+    def _open_focus_mode(self) -> None:
+        """从托盘打开专注模式窗口。"""
+        from ui.focus_window import FocusWindow
+
+        fw = FocusWindow(
+            pipeline=self._pipeline,
+            config=self._config,
+        )
+        fw.run()
+
+    def _cycle_model(self) -> None:
+        """切换下一个可用模型。"""
+        models = self._config.models.available
+        current = self._model_var.get()
+        if current in models:
+            idx = (models.index(current) + 1) % len(models)
+            self._model_var.set(models[idx])
+            self._status_label.configure(
+                text=f"已切换: {models[idx]}"
+            )
+            self._schedule_translate()
+
+    def _quit_app(self) -> None:
+        """彻底退出程序。"""
+        self._tray.destroy()
         if self._auto_translate_after_id:
             self._root.after_cancel(self._auto_translate_after_id)
         self._stop_clipboard_watch()
         self._pipeline.close()
+        self._root.quit()
         self._root.destroy()
 
     # ------------------------------------------------------------------
@@ -368,4 +420,5 @@ class MainWindow:
     def run(self) -> None:
         """启动主循环。"""
         self._start_clipboard_watch()
+        self._tray.create()
         self._root.mainloop()
