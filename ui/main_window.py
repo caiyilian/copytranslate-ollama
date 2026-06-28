@@ -484,16 +484,8 @@ class MainWindow:
         Toast.info(self._root, "已清空")
 
     def _on_close(self) -> None:
-        """窗口关闭时最小化到托盘。"""
-        if self._auto_translate_after_id:
-            self._root.after_cancel(self._auto_translate_after_id)
-        self._progress.stop()
-        self._translating = False
-        self._translate_btn.configure(state=tk.NORMAL)
-        self._root.withdraw()
-        self._tray.set_status(
-            paused=self._clip_paused, visible=False
-        )
+        """窗口关闭时退出程序。"""
+        self._quit_app()
 
     def _show_window(self) -> None:
         """从托盘显示窗口。"""

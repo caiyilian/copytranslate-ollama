@@ -5,15 +5,60 @@
 
 from __future__ import annotations
 
+import re
 import signal
 import sys
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from core.cleaner import TextCleaner
 from core.clipboard import ClipboardWatcher
 from core.config import AppConfig
 from core.logger import HistoryEntry, HistoryManager, log_translation
 from core.translator import Translator, _resolve_lang_name
+
+
+# 分段翻译最大字符数（约 1500 个中文字符或 3000 个英文字符）
+_MAX_SEGMENT_CHARS = 2000
+
+
+def _segment_text(text: str, max_chars: int = _MAX_SEGMENT_CHARS) -> List[str]:
+    """将长文本按段落分段。
+
+    优先按空行分段，若单段仍超长则按句子边界切分。
+
+    Args:
+        text: 待分段文本。
+        max_chars: 每段最大字符数。
+
+    Returns:
+        分段后的文本列表。
+    """
+    # 1. 按空行分段
+    paragraphs = [p.strip() for p in re.split(r'\n\s*\n', text) if p.strip()]
+
+    # 2. 检查每段是否超长，超长则按句子边界切分
+    segments: List[str] = []
+    for para in paragraphs:
+        if len(para) <= max_chars:
+            segments.append(para)
+        else:
+            # 按句子边界切分（句号、问号、感叹号、换行）
+            sentences = re.split(r'(?<=[.!?。！？])\s+|\n+', para)
+            current = ""
+            for sent in sentences:
+                sent = sent.strip()
+                if not sent:
+                    continue
+                if len(current) + len(sent) + 1 > max_chars:
+                    if current:
+                        segments.append(current)
+                    current = sent
+                else:
+                    current = (current + " " + sent) if current else sent
+            if current:
+                segments.append(current)
+
+    return segments if segments else [text]
 
 
 class Pipeline:
@@ -49,7 +94,9 @@ class Pipeline:
         temperature: float = 0.0,
         max_length: int = 2048,
     ) -> Tuple[str, str]:
-        """单次翻译：净化 → 翻译 → 记录历史。
+        """单次翻译：净化 → 分段翻译 → 记录历史。
+
+        长文本会自动按段落分段翻译后拼接。
 
         Returns:
             Tuple[str, str]: (译文文本, 检测到的源语言代码)。
@@ -58,14 +105,36 @@ class Pipeline:
 
         cleaned = self._cleaner.clean(text)
         start = time.time()
-        result, detected = self._translator.translate(
-            text=cleaned,
-            source=source,
-            target=target,
-            model=model,
-            temperature=temperature,
-            max_length=max_length,
-        )
+
+        # 分段翻译
+        segments = _segment_text(cleaned)
+        if len(segments) == 1:
+            result, detected = self._translator.translate(
+                text=cleaned,
+                source=source,
+                target=target,
+                model=model,
+                temperature=temperature,
+                max_length=max_length,
+            )
+        else:
+            # 多段翻译，用空行连接
+            translated_parts: List[str] = []
+            detected = ""
+            for i, seg in enumerate(segments):
+                part, det = self._translator.translate(
+                    text=seg,
+                    source=source,
+                    target=target,
+                    model=model,
+                    temperature=temperature,
+                    max_length=max_length,
+                )
+                translated_parts.append(part)
+                if det:
+                    detected = det
+            result = "\n\n".join(translated_parts)
+
         self._current_model = model
         duration_ms = (time.time() - start) * 1000
 
