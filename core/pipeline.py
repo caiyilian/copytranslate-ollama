@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import signal
 import sys
-from typing import Optional
+from typing import Optional, Tuple
 
 from core.cleaner import TextCleaner
 from core.clipboard import ClipboardWatcher
 from core.config import AppConfig
-from core.translator import Translator
+from core.translator import Translator, _resolve_lang_name
 
 
 class Pipeline:
@@ -45,14 +45,14 @@ class Pipeline:
         model: str = "translategemma:4b",
         temperature: float = 0.0,
         max_length: int = 2048,
-    ) -> str:
+    ) -> Tuple[str, str]:
         """单次翻译：净化 → 翻译。
 
         Returns:
-            译文文本。
+            Tuple[str, str]: (译文文本, 检测到的源语言代码)。
         """
         cleaned = self._cleaner.clean(text)
-        return self._translator.translate(
+        result, detected = self._translator.translate(
             text=cleaned,
             source=source,
             target=target,
@@ -60,6 +60,7 @@ class Pipeline:
             temperature=temperature,
             max_length=max_length,
         )
+        return result, detected
 
     def run_listen(
         self,
@@ -101,8 +102,8 @@ class Pipeline:
                 if cfg.clipboard.enable_cleaner:
                     text = self._cleaner.clean(raw_text)
 
-                # 翻译
-                result = self._translator.translate(
+                # 翻译（自动检测语言）
+                result, detected = self._translator.translate(
                     text=text,
                     source=source_lang,
                     target=target_lang,
@@ -111,10 +112,15 @@ class Pipeline:
                     max_length=max_length,
                 )
 
+                # 显示检测到的语言
+                detected_label = _resolve_lang_name(detected) if detected != source_lang else ""
+
                 # 输出
                 print(f"\n[原文]    {text[:200]}")
                 if len(text) > 200:
                     print(f"          ... (共 {len(text)} 字符)")
+                if detected_label:
+                    print(f"[检测到]  {detected_label}")
                 print(f"[译文]    {result[:200]}")
                 if len(result) > 200:
                     print(f"          ... (共 {len(result)} 字符)")

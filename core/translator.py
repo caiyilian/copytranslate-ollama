@@ -8,8 +8,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
+from core.lang_detector import detect_language
 from core.ollama_client import OllamaClient, OllamaError
 
 
@@ -66,6 +67,22 @@ def _resolve_lang_name(code: str) -> str:
     return LANG_NAMES.get(code, code)
 
 
+def resolve_source(source: str, text: str) -> str:
+    """解析源语言：如果为 'auto'，使用语言检测自动识别。
+
+    Args:
+        source: 用户指定的源语言代码或 'auto'。
+        text: 待翻译文本。
+
+    Returns:
+        解析后的语言代码（如 'en', 'zh'）。
+    """
+    if source != "auto":
+        return source
+    lang, _ = detect_language(text)
+    return lang
+
+
 def build_prompt(
     text: str,
     source: str,
@@ -76,15 +93,16 @@ def build_prompt(
 
     Args:
         text: 待翻译文本。
-        source: 源语言代码（如 'en'）。
+        source: 源语言代码（如 'en'），支持 'auto' 自动检测。
         target: 目标语言代码（如 'zh'）。
         model: 模型名称，用于选择模板。
 
     Returns:
         完整 prompt 字符串。
     """
+    resolved_source = resolve_source(source, text)
     template = _resolve_template(model)
-    source_name = _resolve_lang_name(source)
+    source_name = _resolve_lang_name(resolved_source)
     target_name = _resolve_lang_name(target)
     return template.format(
         source=source_name,
@@ -161,23 +179,24 @@ class Translator:
         model: str = "translategemma:4b",
         temperature: float = 0.0,
         max_length: int = 2048,
-    ) -> str:
+    ) -> Tuple[str, str]:
         """执行单次翻译。
 
         Args:
             text: 待翻译文本。
-            source: 源语言代码。
+            source: 源语言代码，支持 'auto' 自动检测。
             target: 目标语言代码。
             model: 模型名称。
             temperature: 温度参数。
             max_length: 最大生成长度。
 
         Returns:
-            译文文本（去除额外说明后）。
+            Tuple[str, str]: (译文文本, 检测到的源语言代码)。
 
         Raises:
             OllamaError: 翻译失败。
         """
+        resolved = resolve_source(source, text)
         prompt = build_prompt(text, source, target, model)
         result = self._client.generate(
             model=model,
@@ -185,7 +204,7 @@ class Translator:
             temperature=temperature,
             max_length=max_length,
         )
-        return clean_response(result.response)
+        return clean_response(result.response), resolved
 
     def translate_stream(
         self,
@@ -196,7 +215,12 @@ class Translator:
         temperature: float = 0.0,
         max_length: int = 2048,
     ):
-        """流式翻译，逐块 yield 译文。"""
+        """流式翻译，逐块 yield 译文。
+
+        Yields:
+            翻译文本片段。
+        """
+        resolved = resolve_source(source, text)
         prompt = build_prompt(text, source, target, model)
         yield from self._client.generate_stream(
             model=model,
