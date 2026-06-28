@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import threading
+import threading
 import tkinter as tk
 from tkinter import ttk
 from typing import Optional
@@ -211,6 +212,12 @@ class MainWindow:
         self._status_label = ttk.Label(top_frame, text="就绪")
         self._status_label.pack(side=tk.RIGHT, padx=5)
 
+        # 翻译进度条（不确定模式）
+        self._progress = ttk.Progressbar(
+            top_frame, mode='indeterminate', length=80
+        )
+        self._progress.pack(side=tk.RIGHT, padx=5)
+
         # --- 左右分栏：原文 | 译文 ---
         self._paned = ttk.PanedWindow(
             self._root, orient=tk.HORIZONTAL
@@ -387,7 +394,7 @@ class MainWindow:
         self._tgt_text.configure(state=tk.DISABLED)
 
     def _do_translate(self) -> None:
-        """执行翻译。"""
+        """执行翻译（线程安全）。"""
         text = self._src_text.get("1.0", tk.END).strip()
         if not text:
             self._status_label.configure(text="请输入原文")
@@ -398,8 +405,19 @@ class MainWindow:
 
         self._translating = True
         self._status_label.configure(text="翻译中...")
-        self._root.update()
+        self._translate_btn.configure(state=tk.DISABLED)
+        self._progress.start(10)  # 开始进度条动画
 
+        # 在后台线程执行翻译
+        thread = threading.Thread(
+            target=self._translate_worker,
+            args=(text,),
+            daemon=True,
+        )
+        thread.start()
+
+    def _translate_worker(self, text: str) -> None:
+        """后台翻译工作线程。"""
         try:
             result, detected = self._pipeline.translate_once(
                 text=text,
@@ -407,18 +425,28 @@ class MainWindow:
                 target=self._target_var.get(),
                 model=self._model_var.get(),
             )
+            # 回到主线程更新 UI
+            self._root.after(0, self._on_translation_done, result, detected, None)
+        except Exception as e:
+            self._root.after(0, self._on_translation_done, "", "", e)
+
+    def _on_translation_done(self, result: str, detected: str, error: Exception) -> None:
+        """翻译完成回调（在主线程执行）。"""
+        self._progress.stop()
+        self._translate_btn.configure(state=tk.NORMAL)
+        self._translating = False
+
+        if error:
+            self._set_tgt_text(f"[翻译失败] {error}")
+            self._status_label.configure(text="错误")
+            from ui.toast import Toast
+            Toast.error(self._root, f"翻译失败: {error}")
+        else:
             self._set_tgt_text(result)
             lang_label = self._lang_names.get(detected, detected)
             self._status_label.configure(
                 text=f"完成 ({len(result)} 字符)  [{lang_label}]"
             )
-        except Exception as e:
-            self._set_tgt_text(f"[翻译失败] {e}")
-            self._status_label.configure(text="错误")
-            from ui.toast import Toast
-            Toast.error(self._root, f"翻译失败: {e}")
-        finally:
-            self._translating = False
 
     def _do_clear(self) -> None:
         """清空原文和译文。"""
@@ -428,6 +456,9 @@ class MainWindow:
         self._src_text.delete("1.0", tk.END)
         self._set_tgt_text("")
         self._status_label.configure(text="已清空")
+        self._progress.stop()
+        self._translating = False
+        self._translate_btn.configure(state=tk.NORMAL)
         from ui.toast import Toast
         Toast.info(self._root, "已清空")
 
@@ -435,6 +466,9 @@ class MainWindow:
         """窗口关闭时最小化到托盘。"""
         if self._auto_translate_after_id:
             self._root.after_cancel(self._auto_translate_after_id)
+        self._progress.stop()
+        self._translating = False
+        self._translate_btn.configure(state=tk.NORMAL)
         self._root.withdraw()
         self._tray.set_status(
             paused=self._clip_paused, visible=False
@@ -455,6 +489,10 @@ class MainWindow:
     def _switch_to_focus(self) -> None:
         """切换到专注模式。"""
         from ui.focus_window import FocusWindow
+
+        self._progress.stop()
+        self._translating = False
+        self._translate_btn.configure(state=tk.NORMAL)
 
         # 隐藏对照窗口
         self._root.withdraw()
