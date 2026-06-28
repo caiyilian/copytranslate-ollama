@@ -12,6 +12,7 @@ from tkinter import ttk
 from typing import Optional
 
 from core.clipboard import ClipboardWatcher
+from core.layout import get_safe_layout, save_layout
 from core.pipeline import Pipeline
 from core.config import AppConfig
 from core.snapshot_manager import SnapshotManager
@@ -99,6 +100,24 @@ class MainWindow:
 
         self._build_ui()
         self._bind_events()
+        self._restore_layout()
+
+    def _restore_layout(self) -> None:
+        """恢复窗口布局。"""
+        layout = get_safe_layout()
+        self._root.geometry(
+            f"{layout['width']}x{layout['height']}+{layout['x']}+{layout['y']}"
+        )
+        # 恢复模式
+        if layout.get("mode") == "focus":
+            self._mode = "focus"
+            self._root.title("CopyTranslator-Ollama — 专注模式")
+        # 恢复分割器位置
+        if hasattr(self, "_paned") and "splitter_ratio" in layout:
+            try:
+                self._paned.sashpos(0, int(layout["splitter_ratio"] * layout["width"]))
+            except Exception:
+                pass
 
     def _build_ui(self) -> None:
         """构建界面布局。"""
@@ -542,6 +561,8 @@ class MainWindow:
 
     def _quit_app(self) -> None:
         """彻底退出程序。"""
+        # 保存窗口布局
+        self._save_layout()
         self._tray.destroy()
         if self._auto_translate_after_id:
             self._root.after_cancel(self._auto_translate_after_id)
@@ -549,6 +570,34 @@ class MainWindow:
         self._pipeline.close()
         self._root.quit()
         self._root.destroy()
+
+    def _save_layout(self) -> None:
+        """保存窗口布局。"""
+        try:
+            # 获取窗口位置和大小
+            geometry = self._root.geometry()
+            # 解析 "900x550+100+200" 格式
+            size_part, x_part, y_part = geometry.split("+")
+            width_str, height_str = size_part.split("x")
+            # 获取分割器比例
+            splitter_ratio = 0.5
+            if hasattr(self, "_paned"):
+                try:
+                    sash = self._paned.sashpos(0)
+                    w = self._root.winfo_width()
+                    splitter_ratio = sash / max(w, 1)
+                except Exception:
+                    pass
+            save_layout(
+                x=int(x_part),
+                y=int(y_part),
+                width=int(width_str),
+                height=int(height_str),
+                mode=getattr(self, "_mode", "contrast"),
+                splitter_ratio=splitter_ratio,
+            )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # 开机自启
