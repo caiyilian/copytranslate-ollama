@@ -34,6 +34,7 @@ from ui_qt.tray import SystemTray
 from ui_qt.focus_window import FocusWindow
 from ui_qt.settings_dialog import SettingsDialog
 from ui_qt.snapshot_dialog import SnapshotDialog
+from ui_qt.history_dialog import HistoryDialog
 
 
 # 语言代码 -> 中文显示名
@@ -234,14 +235,17 @@ class MainWindow(QMainWindow):
 
         # 左侧按钮组
         for text, slots in [
-            ("历史", None),
+            ("历史", self._open_history),
             ("统计", None),
             ("导出", None),
             ("日志", None),
             ("关于", None),
         ]:
             btn = QPushButton(text)
-            btn.setEnabled(False)  # Phase 12-13 实现
+            if slots:
+                btn.clicked.connect(slots)
+            else:
+                btn.setEnabled(False)  # Phase 13 实现
             bar_layout.addWidget(btn)
 
         bar_layout.addWidget(QLabel("  "))
@@ -504,6 +508,11 @@ class MainWindow(QMainWindow):
             self._target_combo.setCurrentText(
                 _LANG_DISPLAY.get(self._config.translation.target_lang, self._config.translation.target_lang)
             )
+
+    def _open_history(self) -> None:
+        """打开翻译历史。"""
+        dialog = HistoryDialog(self)
+        dialog.show()
 
     def _open_snapshots(self) -> None:
         """打开快照管理对话框。"""
