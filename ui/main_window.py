@@ -204,6 +204,14 @@ class MainWindow:
         )
         self._clear_btn.pack(side=tk.LEFT, padx=5)
 
+        # 设置按钮
+        self._settings_btn = ttk.Button(
+            bottom_frame,
+            text="设置",
+            command=self._open_settings,
+        )
+        self._settings_btn.pack(side=tk.LEFT, padx=5)
+
         # 模式切换按钮
         self._mode_btn = ttk.Button(
             bottom_frame,
@@ -345,6 +353,30 @@ class MainWindow:
             main_window=self,
         )
         fw.run()
+
+    def _open_settings(self) -> None:
+        """打开设置面板。"""
+        from ui.settings_dialog import SettingsDialog
+
+        dialog = SettingsDialog(
+            parent=self._root,
+            config=self._config,
+            on_save=self._on_settings_saved,
+        )
+        dialog.wait()
+
+    def _on_settings_saved(self, config: AppConfig) -> None:
+        """设置保存后的回调。"""
+        # 更新 UI 中的模型/语言选择
+        self._model_var.set(config.translation.active_model)
+        self._source_var.set(config.translation.source_lang)
+        self._target_var.set(config.translation.target_lang)
+        self._status_label.configure(text="设置已保存")
+
+        # 如果当前有原文，重新翻译
+        text = self._src_text.get("1.0", tk.END).strip()
+        if text:
+            self._schedule_translate()
 
     def _cycle_model(self) -> None:
         """切换下一个可用模型。"""
