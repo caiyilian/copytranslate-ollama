@@ -8,8 +8,9 @@ class TestFocusWindow:
         """验证 FocusWindow 使用的 Pipeline 能正常工作。"""
         p = Pipeline()
         try:
-            result = p.translate_once("hello", source="en", target="zh")
+            result, detected = p.translate_once("hello", source="en", target="zh")
             assert isinstance(result, str)
+            assert isinstance(detected, str)
             assert len(result) > 0
         finally:
             p.close()
