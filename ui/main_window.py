@@ -269,6 +269,14 @@ class MainWindow:
         )
         self._log_btn.pack(side=tk.LEFT, padx=5)
 
+        # 导出按钮
+        self._export_btn = ttk.Button(
+            bottom_frame,
+            text="导出",
+            command=self._open_export,
+        )
+        self._export_btn.pack(side=tk.LEFT, padx=5)
+
         # 设置按钮
         self._settings_btn = ttk.Button(
             bottom_frame,
@@ -579,6 +587,17 @@ class MainWindow:
         from ui.log_dialog import LogDialog
 
         dialog = LogDialog(parent=self._root)
+        dialog.wait()
+
+    # ------------------------------------------------------------------
+    # 导出
+    # ------------------------------------------------------------------
+
+    def _open_export(self) -> None:
+        """打开翻译导出对话框。"""
+        from ui.export_dialog import ExportDialog
+
+        dialog = ExportDialog(parent=self._root)
         dialog.wait()
 
     # ------------------------------------------------------------------
