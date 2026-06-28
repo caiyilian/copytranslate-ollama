@@ -261,6 +261,14 @@ class MainWindow:
         )
         self._stats_btn.pack(side=tk.LEFT, padx=5)
 
+        # 日志按钮
+        self._log_btn = ttk.Button(
+            bottom_frame,
+            text="日志",
+            command=self._open_logs,
+        )
+        self._log_btn.pack(side=tk.LEFT, padx=5)
+
         # 设置按钮
         self._settings_btn = ttk.Button(
             bottom_frame,
@@ -296,6 +304,15 @@ class MainWindow:
         self._root.bind(
             "<Control-h>",
             lambda e: self._open_history(),
+        )
+        self._root.bind(
+            "<Control-l>",
+            lambda e: self._do_clear(),
+        )
+        self._root.bind(
+            "<Control-k>",
+            lambda e: self._open_logs(),
+        )
 
         # 模型/语言切换 -> 重新翻译
         self._model_combo.bind(
@@ -551,6 +568,17 @@ class MainWindow:
         from ui.stats_dialog import StatsDialog
 
         dialog = StatsDialog(parent=self._root)
+        dialog.wait()
+
+    # ------------------------------------------------------------------
+    # 日志
+    # ------------------------------------------------------------------
+
+    def _open_logs(self) -> None:
+        """打开日志查看对话框。"""
+        from ui.log_dialog import LogDialog
+
+        dialog = LogDialog(parent=self._root)
         dialog.wait()
 
     # ------------------------------------------------------------------
