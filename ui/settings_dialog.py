@@ -10,6 +10,7 @@ from tkinter import ttk
 from typing import Any, Callable, Dict, List, Optional
 
 from core.config import AppConfig
+from core.config_io import export_config, import_config, merge_config
 
 
 class SettingsDialog:
@@ -71,6 +72,14 @@ class SettingsDialog:
         ttk.Button(
             btn_frame, text="取消", command=self._dialog.destroy
         ).pack(side=tk.RIGHT, padx=5)
+
+        ttk.Button(
+            btn_frame, text="导出配置", command=self._do_export
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            btn_frame, text="导入配置", command=self._do_import
+        ).pack(side=tk.LEFT, padx=5)
 
     def _make_spinbox(
         self,
@@ -365,6 +374,83 @@ class SettingsDialog:
         if self._on_save:
             self._on_save(self._config)
 
+        self._dialog.destroy()
+
+    # ------------------------------------------------------------------
+    # 导入 / 导出
+    # ------------------------------------------------------------------
+
+    def _do_export(self) -> None:
+        """导出当前配置到 JSON 文件。"""
+        from pathlib import Path
+        from tkinter import filedialog
+
+        file_path = filedialog.asksaveasfilename(
+            parent=self._dialog,
+            title="导出配置",
+            defaultextension=".json",
+            filetypes=[("JSON 配置文件", "*.json")],
+            initialfile="copytranslate-config.json",
+        )
+        if not file_path:
+            return
+
+        success = export_config(self._config, Path(file_path))
+        if success:
+            from ui.toast import Toast
+            Toast.success(self._dialog, f"配置已导出到:\n{file_path}")
+        else:
+            from tkinter import messagebox
+            messagebox.showerror(
+                "导出失败",
+                "无法写入文件，请检查路径权限。",
+                parent=self._dialog,
+            )
+
+    def _do_import(self) -> None:
+        """从 JSON 文件导入配置。"""
+        from pathlib import Path
+        from tkinter import filedialog, messagebox
+
+        file_path = filedialog.askopenfilename(
+            parent=self._dialog,
+            title="导入配置",
+            filetypes=[("JSON 配置文件", "*.json"), ("所有文件", "*.*")],
+        )
+        if not file_path:
+            return
+
+        imported = import_config(Path(file_path))
+        if imported is None:
+            messagebox.showerror(
+                "导入失败",
+                "无法解析所选文件，请确认是有效的配置文件。",
+                parent=self._dialog,
+            )
+            return
+
+        # 询问合并还是覆盖
+        choice = messagebox.askyesnocancel(
+            "导入选项",
+            "是：合并到当前配置（同名快照覆盖）\n"
+            "否：完全替换为导入的配置\n"
+            "取消：取消导入",
+            parent=self._dialog,
+        )
+        if choice is None:  # 取消
+            return
+        elif choice:  # 合并
+            merged = merge_config(self._config, imported)
+            self._config = merged
+        else:  # 替换
+            self._config = imported
+
+        self._config.save()
+
+        from ui.toast import Toast
+        Toast.success(self._dialog, "配置已导入并保存")
+
+        # 关闭对话框，用户重新打开以看到新配置
         self._dialog.destroy()
 
     def wait(self) -> None:
