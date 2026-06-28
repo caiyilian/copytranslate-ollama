@@ -8,12 +8,13 @@ class TestPipeline:
         """测试单次翻译流程。"""
         p = Pipeline()
         try:
-            result = p.translate_once(
+            result, detected = p.translate_once(
                 "hello world",
                 source="en",
                 target="zh",
             )
             assert isinstance(result, str)
+            assert isinstance(detected, str)
             assert len(result) > 0
         finally:
             p.close()
@@ -23,12 +24,13 @@ class TestPipeline:
         p = Pipeline()
         try:
             # 带连字符断词的文本
-            result = p.translate_once(
+            result, detected = p.translate_once(
                 "transla-\ntion is use-\nful",
                 source="en",
                 target="zh",
             )
             assert isinstance(result, str)
+            assert isinstance(detected, str)
             assert len(result) > 0
         finally:
             p.close()

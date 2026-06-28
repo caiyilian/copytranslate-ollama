@@ -8,12 +8,13 @@ class TestMainWindow:
         """验证 MainWindow 使用的 Pipeline 能正常工作。"""
         p = Pipeline()
         try:
-            result = p.translate_once(
+            result, detected = p.translate_once(
                 "hello world",
                 source="en",
                 target="zh",
             )
             assert isinstance(result, str)
+            assert isinstance(detected, str)
             assert len(result) > 0
         finally:
             p.close()
@@ -22,13 +23,15 @@ class TestMainWindow:
         """测试非英文翻译。"""
         p = Pipeline()
         try:
-            result = p.translate_once(
+            result, detected = p.translate_once(
                 "bonjour",
                 source="fr",
                 target="zh",
                 model="ali6parmak/hy-mt1.5:1.8b",
             )
             assert isinstance(result, str)
+            assert isinstance(detected, str)
+            assert detected == "fr"
             assert len(result) > 0
         finally:
             p.close()
