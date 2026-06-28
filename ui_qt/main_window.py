@@ -30,6 +30,7 @@ from core.pipeline import Pipeline
 from core.snapshot_manager import SnapshotManager
 from ui_qt.translate_worker import TranslateWorker
 from ui_qt.clipboard_worker import ClipboardWatchWorker
+from ui_qt.tray import SystemTray
 
 
 # 语言代码 -> 中文显示名
@@ -77,6 +78,7 @@ class MainWindow(QMainWindow):
         self._build_status_bar()
         self._connect_signals()
         self._start_clipboard_watch()
+        self._build_tray()
 
     # ------------------------------------------------------------------
     # 菜单栏
@@ -393,11 +395,69 @@ class MainWindow(QMainWindow):
         self._do_translate()
 
     # ------------------------------------------------------------------
+    # 系统托盘
+    # ------------------------------------------------------------------
+
+    def _build_tray(self) -> None:
+        """构建系统托盘。"""
+        self._tray = SystemTray(
+            tooltip="CopyTranslator-Ollama",
+            on_show=self._toggle_visible,
+            on_focus=self._open_focus_mode,
+            on_toggle_pause=self._toggle_clipboard_pause,
+            on_switch_model=self._cycle_model,
+            on_quit=self._quit_app,
+        )
+        self._tray.show()
+
+    def _toggle_visible(self) -> None:
+        """切换窗口显示/隐藏。"""
+        if self.isVisible():
+            self.hide()
+        else:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+
+    def _toggle_clipboard_pause(self) -> None:
+        """切换剪贴板监听暂停/恢复。"""
+        if hasattr(self, "_clip_worker"):
+            if self._clip_worker.is_paused:
+                self._clip_worker.resume()
+                self._tray.set_pause_text(False)
+                self._status_label.setText("剪贴板监听已恢复")
+            else:
+                self._clip_worker.pause()
+                self._tray.set_pause_text(True)
+                self._status_label.setText("剪贴板监听已暂停")
+
+    def _cycle_model(self) -> None:
+        """切换下一个可用模型。"""
+        models = self._config.models.available
+        current = self._model_combo.currentText()
+        if current in models:
+            idx = (models.index(current) + 1) % len(models)
+            self._model_combo.setCurrentText(models[idx])
+            self._status_label.setText(f"已切换: {models[idx]}")
+
+    def _open_focus_mode(self) -> None:
+        """打开专注模式（占位，Phase 9 实现）。"""
+        self._status_label.setText("专注模式将在 Phase 9 实现")
+
+    def _quit_app(self) -> None:
+        """彻底退出程序。"""
+        self._stop_clipboard_watch()
+        self._pipeline.close()
+        if hasattr(self, "_tray"):
+            self._tray.hide()
+        from PyQt6.QtWidgets import QApplication
+        QApplication.instance().quit()
+
+    # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
 
     def closeEvent(self, event) -> None:  # type: ignore
-        """窗口关闭事件。"""
-        self._stop_clipboard_watch()
-        self._pipeline.close()
-        event.accept()
+        """窗口关闭 → 隐藏到托盘（不退出）。"""
+        self.hide()
+        event.ignore()
