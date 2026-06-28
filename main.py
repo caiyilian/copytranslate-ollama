@@ -42,7 +42,7 @@ def cmd_gui(args: argparse.Namespace) -> None:
     """启动 GUI 模式。"""
     from ui.main_window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(mode=args.mode or "contrast")
     window.run()
 
 
