@@ -315,6 +315,8 @@ class FocusWindow:
             self._trans_label.configure(text=label)
         except Exception as e:
             self._trans_label.configure(text=f"[错误] {e}")
+            from ui.toast import Toast
+            Toast.error(self._root, f"翻译失败: {e}")
 
     def _toggle_pause(self) -> None:
         """切换剪贴板监听。"""

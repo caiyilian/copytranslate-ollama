@@ -343,6 +343,8 @@ class MainWindow:
         except Exception as e:
             self._set_tgt_text(f"[翻译失败] {e}")
             self._status_label.configure(text="错误")
+            from ui.toast import Toast
+            Toast.error(self._root, f"翻译失败: {e}")
         finally:
             self._translating = False
 
@@ -354,6 +356,8 @@ class MainWindow:
         self._src_text.delete("1.0", tk.END)
         self._set_tgt_text("")
         self._status_label.configure(text="已清空")
+        from ui.toast import Toast
+        Toast.info(self._root, "已清空")
 
     def _on_close(self) -> None:
         """窗口关闭时最小化到托盘。"""
@@ -412,6 +416,8 @@ class MainWindow:
         self._source_var.set(config.translation.source_lang)
         self._target_var.set(config.translation.target_lang)
         self._status_label.configure(text="设置已保存")
+        from ui.toast import Toast
+        Toast.success(self._root, "设置已保存")
 
         # 如果当前有原文，重新翻译
         text = self._src_text.get("1.0", tk.END).strip()
@@ -431,6 +437,8 @@ class MainWindow:
             self._source_var.set(self._config.translation.source_lang)
             self._target_var.set(self._config.translation.target_lang)
             self._status_label.configure(text=f"已加载快照: {name}")
+            from ui.toast import Toast
+            Toast.info(self._root, f"已加载快照: {name}")
             # 如果有原文，重新翻译
             text = self._src_text.get("1.0", tk.END).strip()
             if text:
@@ -532,10 +540,14 @@ class MainWindow:
             self._clip_paused = False
             self._clip_btn.configure(text="📋 监听中")
             self._status_label.configure(text="剪贴板监听已恢复")
+            from ui.toast import Toast
+            Toast.info(self._root, "剪贴板监听已恢复")
         else:
             self._clip_paused = True
             self._clip_btn.configure(text="📋 已暂停")
             self._status_label.configure(text="剪贴板监听已暂停")
+            from ui.toast import Toast
+            Toast.info(self._root, "剪贴板监听已暂停")
 
     def _clipboard_loop(self) -> None:
         """后台剪贴板轮询循环。"""
