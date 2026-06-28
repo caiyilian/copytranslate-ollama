@@ -374,7 +374,7 @@ class MainWindow:
         # 模型/语言切换 -> 重新翻译
         self._model_combo.bind(
             "<<ComboboxSelected>>",
-            lambda e: self._schedule_translate(),
+            lambda e: self._on_model_changed(),
         )
         self._source_combo.bind(
             "<<ComboboxSelected>>",
@@ -542,6 +542,8 @@ class MainWindow:
 
     def _on_settings_saved(self, config: AppConfig) -> None:
         """设置保存后的回调。"""
+        # 卸载旧模型，避免显存占用
+        self._pipeline.stop_current_model()
         # 更新 UI 中的模型/语言选择
         self._model_var.set(config.translation.active_model)
         self._source_var.set(_LANG_DISPLAY.get(config.translation.source_lang, config.translation.source_lang))
@@ -560,6 +562,8 @@ class MainWindow:
         name = self._snap_var.get()
         if not name:
             return
+        # 卸载旧模型，避免显存占用
+        self._pipeline.stop_current_model()
         success = self._snap_manager.apply_snapshot(name, self._config)
         if success:
             self._config.save()
@@ -581,6 +585,8 @@ class MainWindow:
 
         def on_select(name: str) -> None:
             """快照加载后的回调。"""
+            # 卸载旧模型，避免显存占用
+            self._pipeline.stop_current_model()
             self._config.save()
             self._model_var.set(self._config.translation.active_model)
             self._source_var.set(_LANG_DISPLAY.get(self._config.translation.source_lang, self._config.translation.source_lang))
@@ -606,11 +612,19 @@ class MainWindow:
             values=self._snap_manager.snapshot_names()
         )
 
+    def _on_model_changed(self) -> None:
+        """模型下拉框切换时卸载旧模型。"""
+        # 卸载旧模型，避免显存占用
+        self._pipeline.stop_current_model()
+        self._schedule_translate()
+
     def _cycle_model(self) -> None:
         """切换下一个可用模型。"""
         models = self._config.models.available
         current = self._model_var.get()
         if current in models:
+            # 卸载旧模型，避免显存占用
+            self._pipeline.stop_current_model()
             idx = (models.index(current) + 1) % len(models)
             self._model_var.set(models[idx])
             self._status_label.configure(
