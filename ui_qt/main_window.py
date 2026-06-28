@@ -31,6 +31,7 @@ from core.snapshot_manager import SnapshotManager
 from ui_qt.translate_worker import TranslateWorker
 from ui_qt.clipboard_worker import ClipboardWatchWorker
 from ui_qt.tray import SystemTray
+from ui_qt.focus_window import FocusWindow
 
 
 # 语言代码 -> 中文显示名
@@ -98,7 +99,7 @@ class MainWindow(QMainWindow):
         # 视图菜单
         view_menu = menubar.addMenu("视图(&V)")
         focus_action = QAction("专注模式(&F)", self)
-        focus_action.setEnabled(False)  # Phase 9 实现
+        focus_action.triggered.connect(self._open_focus_mode)
         view_menu.addAction(focus_action)
 
     # ------------------------------------------------------------------
@@ -229,7 +230,7 @@ class MainWindow(QMainWindow):
 
         # 右侧按钮
         self._mode_btn = QPushButton("专注模式 >>")
-        self._mode_btn.setEnabled(False)  # Phase 9 实现
+        self._mode_btn.clicked.connect(self._open_focus_mode)
         bar_layout.addWidget(self._mode_btn)
 
         parent_layout.addWidget(bar)
@@ -441,8 +442,14 @@ class MainWindow(QMainWindow):
             self._status_label.setText(f"已切换: {models[idx]}")
 
     def _open_focus_mode(self) -> None:
-        """打开专注模式（占位，Phase 9 实现）。"""
-        self._status_label.setText("专注模式将在 Phase 9 实现")
+        """打开专注模式浮窗。"""
+        self._focus_window = FocusWindow(
+            pipeline=self._pipeline,
+            config=self._config,
+            main_window=self,
+        )
+        self._focus_window.show()
+        self.hide()
 
     def _quit_app(self) -> None:
         """彻底退出程序。"""
