@@ -35,6 +35,10 @@ from ui_qt.focus_window import FocusWindow
 from ui_qt.settings_dialog import SettingsDialog
 from ui_qt.snapshot_dialog import SnapshotDialog
 from ui_qt.history_dialog import HistoryDialog
+from ui_qt.stats_dialog import StatsDialog
+from ui_qt.export_dialog import ExportDialog
+from ui_qt.log_dialog import LogDialog
+from ui_qt.about_dialog import AboutDialog
 
 
 # 语言代码 -> 中文显示名
@@ -236,10 +240,10 @@ class MainWindow(QMainWindow):
         # 左侧按钮组
         for text, slots in [
             ("历史", self._open_history),
-            ("统计", None),
-            ("导出", None),
-            ("日志", None),
-            ("关于", None),
+            ("统计", self._open_stats),
+            ("导出", self._open_export),
+            ("日志", self._open_log),
+            ("关于", self._open_about),
         ]:
             btn = QPushButton(text)
             if slots:
@@ -513,6 +517,26 @@ class MainWindow(QMainWindow):
         """打开翻译历史。"""
         dialog = HistoryDialog(self)
         dialog.show()
+
+    def _open_stats(self) -> None:
+        """打开统计。"""
+        dialog = StatsDialog(self)
+        dialog.exec()
+
+    def _open_export(self) -> None:
+        """打开导出。"""
+        dialog = ExportDialog(self)
+        dialog.exec()
+
+    def _open_log(self) -> None:
+        """打开日志。"""
+        dialog = LogDialog(self)
+        dialog.exec()
+
+    def _open_about(self) -> None:
+        """打开关于。"""
+        dialog = AboutDialog(self)
+        dialog.exec()
 
     def _open_snapshots(self) -> None:
         """打开快照管理对话框。"""
