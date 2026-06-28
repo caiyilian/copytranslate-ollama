@@ -29,6 +29,7 @@ from core.config import AppConfig
 from core.pipeline import Pipeline
 from core.snapshot_manager import SnapshotManager
 from ui_qt.translate_worker import TranslateWorker
+from ui_qt.clipboard_worker import ClipboardWatchWorker
 
 
 # 语言代码 -> 中文显示名
@@ -75,6 +76,7 @@ class MainWindow(QMainWindow):
         self._build_central()
         self._build_status_bar()
         self._connect_signals()
+        self._start_clipboard_watch()
 
     # ------------------------------------------------------------------
     # 菜单栏
@@ -362,10 +364,40 @@ class MainWindow(QMainWindow):
         pass
 
     # ------------------------------------------------------------------
+    # 剪贴板监听
+    # ------------------------------------------------------------------
+
+    def _start_clipboard_watch(self) -> None:
+        """启动后台剪贴板监听线程。"""
+        self._clip_thread = QThread()
+        self._clip_worker = ClipboardWatchWorker()
+        self._clip_worker.moveToThread(self._clip_thread)
+        self._clip_worker.clipboard_changed.connect(self._on_clipboard_change)
+        self._clip_thread.started.connect(self._clip_worker.run)
+        self._clip_thread.start()
+
+    def _stop_clipboard_watch(self) -> None:
+        """停止剪贴板监听。"""
+        if hasattr(self, "_clip_worker"):
+            self._clip_worker.stop()
+            self._clip_worker.deleteLater()
+        if hasattr(self, "_clip_thread"):
+            self._clip_thread.quit()
+            self._clip_thread.wait(2000)
+            self._clip_thread.deleteLater()
+
+    def _on_clipboard_change(self, text: str) -> None:
+        """剪贴板内容变化（主线程）。"""
+        self._src_text.setText(text)
+        self._status_label.setText(f"检测到剪贴板 ({len(text)} 字符)")
+        self._do_translate()
+
+    # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
 
     def closeEvent(self, event) -> None:  # type: ignore
         """窗口关闭事件。"""
+        self._stop_clipboard_watch()
         self._pipeline.close()
         event.accept()
