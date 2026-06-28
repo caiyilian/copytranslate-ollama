@@ -27,6 +27,26 @@ _AUTO_TRANSLATE_DELAY_MS = 600
 # 剪贴板轮询间隔（毫秒）
 _CLIPBOARD_POLL_MS = 500
 
+# 语言代码 -> 中文显示名
+_LANG_DISPLAY = {
+    "auto": "自动检测",
+    "zh": "简体中文",
+    "en": "English",
+    "ja": "日本語",
+    "ko": "한국어",
+    "fr": "Français",
+    "de": "Deutsch",
+    "es": "Español",
+    "ru": "Русский",
+    "ar": "العربية",
+    "pt": "Português",
+    "it": "Italiano",
+    "vi": "Tiếng Việt",
+    "th": "ไทย",
+}
+# 反向映射：显示名 -> 语言代码
+_LANG_CODE = {v: k for k, v in _LANG_DISPLAY.items()}
+
 
 class MainWindow:
     """对照模式主窗口。
@@ -52,10 +72,10 @@ class MainWindow:
 
         # 状态变量
         self._source_var = tk.StringVar(
-            value=self._config.translation.source_lang
+            value=_LANG_DISPLAY.get(self._config.translation.source_lang, self._config.translation.source_lang)
         )
         self._target_var = tk.StringVar(
-            value=self._config.translation.target_lang
+            value=_LANG_DISPLAY.get(self._config.translation.target_lang, self._config.translation.target_lang)
         )
         self._model_var = tk.StringVar(
             value=self._config.translation.active_model
@@ -70,10 +90,11 @@ class MainWindow:
 
         # 语言代码 → 名称映射（用于自动检测结果显示）
         self._lang_names = {
-            "en": "English", "zh": "中文", "ja": "日本語",
-            "ko": "한국어", "fr": "Français", "de": "Deutsch",
-            "es": "Español", "ru": "Русский", "ar": "العربية",
-            "pt": "Português", "th": "ไทย",
+            "en": "英语", "zh": "简体中文", "ja": "日语",
+            "ko": "韩语", "fr": "法语", "de": "德语",
+            "es": "西班牙语", "ru": "俄语", "ar": "阿拉伯语",
+            "pt": "葡萄牙语", "th": "泰语",
+            "auto": "自动检测",
         }
 
         # 快照管理器
@@ -140,11 +161,8 @@ class MainWindow:
         self._source_combo = ttk.Combobox(
             top_frame,
             textvariable=self._source_var,
-            values=[
-                "auto", "en", "zh", "ja", "ko",
-                "fr", "de", "es", "ru", "ar", "pt", "it", "vi", "th",
-            ],
-            width=8,
+            values=list(_LANG_DISPLAY.values()),
+            width=12,
             state="readonly",
         )
         self._source_combo.pack(side=tk.LEFT, padx=(2, 5))
@@ -155,11 +173,8 @@ class MainWindow:
         self._target_combo = ttk.Combobox(
             top_frame,
             textvariable=self._target_var,
-            values=[
-                "zh", "en", "ja", "ko", "fr", "de",
-                "es", "ru", "ar", "pt", "it", "vi", "th",
-            ],
-            width=8,
+            values=[v for k, v in _LANG_DISPLAY.items() if k != "auto"],
+            width=12,
             state="readonly",
         )
         self._target_combo.pack(side=tk.LEFT, padx=(2, 5))
@@ -418,11 +433,17 @@ class MainWindow:
 
     def _translate_worker(self, text: str) -> None:
         """后台翻译工作线程。"""
+        # 将中文显示名转换回语言代码
+        source_display = self._source_var.get()
+        target_display = self._target_var.get()
+        source_code = _LANG_CODE.get(source_display, source_display)
+        target_code = _LANG_CODE.get(target_display, target_display)
+
         try:
             result, detected = self._pipeline.translate_once(
                 text=text,
-                source=self._source_var.get(),
-                target=self._target_var.get(),
+                source=source_code,
+                target=target_code,
                 model=self._model_var.get(),
             )
             # 回到主线程更新 UI
@@ -523,8 +544,8 @@ class MainWindow:
         """设置保存后的回调。"""
         # 更新 UI 中的模型/语言选择
         self._model_var.set(config.translation.active_model)
-        self._source_var.set(config.translation.source_lang)
-        self._target_var.set(config.translation.target_lang)
+        self._source_var.set(_LANG_DISPLAY.get(config.translation.source_lang, config.translation.source_lang))
+        self._target_var.set(_LANG_DISPLAY.get(config.translation.target_lang, config.translation.target_lang))
         self._status_label.configure(text="设置已保存")
         from ui.toast import Toast
         Toast.success(self._root, "设置已保存")
@@ -544,8 +565,8 @@ class MainWindow:
             self._config.save()
             # 更新 UI 控件状态
             self._model_var.set(self._config.translation.active_model)
-            self._source_var.set(self._config.translation.source_lang)
-            self._target_var.set(self._config.translation.target_lang)
+            self._source_var.set(_LANG_DISPLAY.get(self._config.translation.source_lang, self._config.translation.source_lang))
+            self._target_var.set(_LANG_DISPLAY.get(self._config.translation.target_lang, self._config.translation.target_lang))
             self._status_label.configure(text=f"已加载快照: {name}")
             from ui.toast import Toast
             Toast.info(self._root, f"已加载快照: {name}")
@@ -562,8 +583,8 @@ class MainWindow:
             """快照加载后的回调。"""
             self._config.save()
             self._model_var.set(self._config.translation.active_model)
-            self._source_var.set(self._config.translation.source_lang)
-            self._target_var.set(self._config.translation.target_lang)
+            self._source_var.set(_LANG_DISPLAY.get(self._config.translation.source_lang, self._config.translation.source_lang))
+            self._target_var.set(_LANG_DISPLAY.get(self._config.translation.target_lang, self._config.translation.target_lang))
             # 刷新快照列表
             self._snap_combo.configure(
                 values=self._snap_manager.snapshot_names()
