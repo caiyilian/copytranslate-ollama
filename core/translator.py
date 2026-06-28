@@ -43,22 +43,22 @@ def _resolve_template(model: str) -> str:
     return PROMPT_TEMPLATES["standard"]
 
 
-# 语言名称映射（ISO 代码 -> 完整名称）
+# 语言名称映射（ISO 代码 -> 中文名称）
 LANG_NAMES: Dict[str, str] = {
-    "en": "English",
-    "zh": "Chinese",
-    "ja": "Japanese",
-    "ko": "Korean",
-    "fr": "French",
-    "de": "German",
-    "es": "Spanish",
-    "ru": "Russian",
-    "ar": "Arabic",
-    "pt": "Portuguese",
-    "it": "Italian",
-    "vi": "Vietnamese",
-    "th": "Thai",
-    "hi": "Hindi",
+    "en": "英语",
+    "zh": "简体中文",
+    "ja": "日语",
+    "ko": "韩语",
+    "fr": "法语",
+    "de": "德语",
+    "es": "西班牙语",
+    "ru": "俄语",
+    "ar": "阿拉伯语",
+    "pt": "葡萄牙语",
+    "it": "意大利语",
+    "vi": "越南语",
+    "th": "泰语",
+    "hi": "印地语",
 }
 
 
