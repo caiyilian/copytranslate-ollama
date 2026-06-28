@@ -7,11 +7,15 @@ from __future__ import annotations
 
 import tkinter as tk
 from typing import Any, Callable, Optional
+import os
+import tempfile
 
 import win32api
 import win32con
 import win32gui
 from PIL import Image, ImageDraw
+import ctypes
+from ctypes import wintypes
 
 
 # 托盘自定义消息
@@ -56,16 +60,18 @@ class SystemTray:
         self._paused = False
         self._visible = True
 
-    def _create_icon(self) -> int:
+    def _create_icon(self):
         """创建 16x16 托盘图标。"""
         img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        # 绘制一个简单的翻译图标 "T"
         draw.rectangle([0, 0, 15, 15], fill=(50, 120, 200, 255))
         draw.text((3, 1), "T", fill=(255, 255, 255, 255))
-        return win32gui.CreateBitmapFromImage(
-            img.tobytes(), 16, 16, 4 * 16, 4
-        )
+        # Save to temp file and load as icon
+        tmp = tempfile.mktemp(suffix=".ico")
+        img.save(tmp, "ICO")
+        hicon = win32gui.LoadImage(0, tmp, win32con.IMAGE_ICON, 0, 0, win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE)
+        os.unlink(tmp)
+        return hicon
 
     @staticmethod
     def _create_menu_item(
