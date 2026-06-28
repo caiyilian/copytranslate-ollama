@@ -32,6 +32,7 @@ from ui_qt.translate_worker import TranslateWorker
 from ui_qt.clipboard_worker import ClipboardWatchWorker
 from ui_qt.tray import SystemTray
 from ui_qt.focus_window import FocusWindow
+from ui_qt.settings_dialog import SettingsDialog
 
 
 # 语言代码 -> 中文显示名
@@ -225,6 +226,13 @@ class MainWindow(QMainWindow):
             btn = QPushButton(text)
             btn.setEnabled(False)  # Phase 12-13 实现
             bar_layout.addWidget(btn)
+
+        bar_layout.addWidget(QLabel("  "))
+
+        # 设置按钮
+        self._settings_btn = QPushButton("设置")
+        self._settings_btn.clicked.connect(self._open_settings)
+        bar_layout.addWidget(self._settings_btn)
 
         bar_layout.addStretch()
 
@@ -459,6 +467,26 @@ class MainWindow(QMainWindow):
             self._tray.hide()
         from PyQt6.QtWidgets import QApplication
         QApplication.instance().quit()
+
+    def _open_settings(self) -> None:
+        """打开设置面板。"""
+        dialog = SettingsDialog(
+            parent=self,
+            config=self._config,
+        )
+        if dialog.exec():
+            self._status_label.setText("设置已保存")
+            # 刷新模型下拉
+            self._model_combo.clear()
+            self._model_combo.addItems(self._config.models.available)
+            self._model_combo.setCurrentText(self._config.translation.active_model)
+            # 刷新语言
+            self._source_combo.setCurrentText(
+                _LANG_DISPLAY.get(self._config.translation.source_lang, self._config.translation.source_lang)
+            )
+            self._target_combo.setCurrentText(
+                _LANG_DISPLAY.get(self._config.translation.target_lang, self._config.translation.target_lang)
+            )
 
     # ------------------------------------------------------------------
     # 生命周期
