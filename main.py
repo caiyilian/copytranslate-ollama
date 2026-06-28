@@ -39,18 +39,27 @@ def cmd_listen(args: argparse.Namespace) -> None:
 
 
 def cmd_gui(args: argparse.Namespace) -> None:
-    """启动 GUI 模式。"""
+    """启动 GUI 模式（PyQt6）。"""
+    import sys
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication(sys.argv)
+    app.setApplicationName(PROJECT)
+
     mode = args.mode or "contrast"
     if mode == "focus":
-        from ui.focus_window import FocusWindow
+        from ui_qt.focus_window import FocusWindow
+        from core.pipeline import Pipeline
 
-        window = FocusWindow()
-        window.run()
+        window = FocusWindow(pipeline=Pipeline())
+        window.show()
     else:
-        from ui.main_window import MainWindow
+        from ui_qt.main_window import MainWindow
 
-        window = MainWindow(mode=mode)
-        window.run()
+        window = MainWindow()
+        window.show()
+
+    sys.exit(app.exec())
 
 
 def build_parser() -> argparse.ArgumentParser:
