@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import signal
 import sys
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from core.cleaner import TextCleaner
 from core.clipboard import ClipboardWatcher
@@ -93,10 +93,15 @@ class Pipeline:
         model: str = "translategemma:4b",
         temperature: float = 0.0,
         max_length: int = 2048,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> Tuple[str, str]:
         """单次翻译：净化 → 分段翻译 → 记录历史。
 
         长文本会自动按段落分段翻译后拼接。
+
+        Args:
+            progress_callback: 可选进度回调，签名 (current_segment, total_segments)。
+                分段翻译时每段前调用一次，单段时不触发。
 
         Returns:
             Tuple[str, str]: (译文文本, 检测到的源语言代码)。
@@ -122,6 +127,8 @@ class Pipeline:
             translated_parts: List[str] = []
             detected = ""
             for i, seg in enumerate(segments):
+                if progress_callback:
+                    progress_callback(i + 1, len(segments))
                 part, det = self._translator.translate(
                     text=seg,
                     source=source,
