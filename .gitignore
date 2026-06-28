@@ -25,6 +25,11 @@ Thumbs.db
 data/*.db
 *.db
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
 # Ollama models not stored here, but just in case
 models/
 
