@@ -1,0 +1,1 @@
+"""CopyTranslator-Ollama PyQt6 UI 层。"""
