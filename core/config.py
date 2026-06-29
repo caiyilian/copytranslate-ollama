@@ -39,7 +39,7 @@ class TranslationConfig(BaseModel):
     """翻译引擎配置。"""
 
     active_model: str = Field(
-        "translategemma:4b", description="当前使用的翻译模型"
+        "ali6parmak/hy-mt1.5:1.8b", description="当前使用的翻译模型"
     )
     source_lang: str = Field("auto", description="源语言 (auto 自动检测)")
     target_lang: str = Field("zh", description="目标语言")
@@ -86,12 +86,12 @@ class ModelsConfig(BaseModel):
     """模型管理配置。"""
 
     available: List[str] = [
-        "translategemma:4b",
         "ali6parmak/hy-mt1.5:1.8b",
+        "translategemma:4b",
     ]
     model_prompts: Dict[str, str] = {
-        "translategemma:4b": "professional",
         "ali6parmak/hy-mt1.5:1.8b": "standard",
+        "translategemma:4b": "professional",
     }
 
 
